@@ -6,17 +6,39 @@
   <title>Open WhatsApp</title>
   <script>
     (function () {
-      // Get everything after ?jid=
-      const params = new URLSearchParams(window.location.search);
-      const jid = params.get('jid');
-
+      function getJid() {
+        const u = new URL(window.location.href);
+        // Try ?jid=...
+        let jid = u.searchParams.get('jid');
+        if (jid) return jid;
+        // Try /g/<jid> format
+        const m = location.pathname.match(/\/g\/([^\/#?]+)/);
+        if (m) return decodeURIComponent(m[1]);
+        // Try hash #jid=...
+        if (u.hash) return u.hash.replace(/^#(jid=)?/, '');
+        return null;
+      }
+      const jid = getJid();
       if (jid) {
-        window.location.href = 'whatsapp://chat?jid=' + encodeURIComponent(jid);
+        const waLink = 'whatsapp://chat?jid=' + encodeURIComponent(jid);
+        // Redirect
+        window.location.replace(waLink);
+        // Also show fallback clickable link
+        document.addEventListener('DOMContentLoaded', () => {
+          document.getElementById('fallback').innerHTML =
+            `<p>If you are not redirected, <a href="${waLink}">click here</a>.</p>`;
+        });
       } else {
-        document.write('<p>Missing JID parameter. Add ?jid=NUMBER_OR_GROUP_ID to the URL.</p>');
+        document.addEventListener('DOMContentLoaded', () => {
+          document.getElementById('fallback').innerHTML =
+            '<p>Missing JID. Add ?jid=NUMBER_OR_GROUP_ID to the URL.</p>';
+        });
       }
     })();
   </script>
 </head>
-<body></body>
+<body>
+  <div id="fallback"></div>
+</body>
 </html>
+
