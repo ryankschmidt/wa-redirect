@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Open WhatsApp</title>
+  <script>
+    (function () {
+      // Get everything after ?jid=
+      const params = new URLSearchParams(window.location.search);
+      const jid = params.get('jid');
+
+      if (jid) {
+        window.location.href = 'whatsapp://chat?jid=' + encodeURIComponent(jid);
+      } else {
+        document.write('<p>Missing JID parameter. Add ?jid=NUMBER_OR_GROUP_ID to the URL.</p>');
+      }
+    })();
+  </script>
+</head>
+<body></body>
+</html>
