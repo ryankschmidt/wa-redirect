@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Open WhatsApp</title>
+  <script>
+    (function () {
+      function getJid() {
+        const u = new URL(window.location.href);
+        let jid = u.searchParams.get('jid');
+        if (jid) return jid;
+        const m = location.pathname.match(/\/g\/([^\/#?]+)/);
+        if (m) return decodeURIComponent(m[1]);
+        if (u.hash) return u.hash.replace(/^#(jid=)?/, '');
+        return null;
+      }
+      const jid = getJid();
+      if (jid) {
+        const waLink = 'whatsapp://chat?jid=' + encodeURIComponent(jid);
+        window.location.replace(waLink);
+        document.addEventListener('DOMContentLoaded', () => {
+          document.getElementById('fallback').innerHTML =
+            `<p>If you are not redirected, <a href="${waLink}">click here</a>.</p>`;
+        });
+      } else {
+        document.addEventListener('DOMContentLoaded', () => {
+          document.getElementById('fallback').innerHTML =
+            '<p>Missing JID. Add ?jid=NUMBER_OR_GROUP_ID to the URL.</p>';
+        });
+      }
+    })();
+  </script>
+</head>
+<body><div id="fallback"></div></body>
+</html>
