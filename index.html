@@ -31,11 +31,11 @@
     <p class="subtitle"><span class="name"></span></p>
     <button class="primary" id="go">Open Chat</button>
     <div class="row">
-      <button class="muted" id="copy" title="Copy deep link to clipboard">Copy Link</button>
+      <button class="muted" id="copy" title="Copy page link to clipboard">Copy Link</button>
       <button class="muted" id="retry" title="Try again">Retry</button>
     </div>
     <p id="fallback" class="hide" style="margin-top:16px">
-      If nothing opened, copy and paste this into your address bar:<br/>
+      If nothing opened, tap the button above. Or copy/paste this into your address bar:<br/>
       <code id="deeplink"></code>
     </p>
   </div>
@@ -43,11 +43,6 @@
   <script>
   (function () {
     const qs   = new URL(location.href);
-
-    // Param parsing
-    const forceWeb  = /^(1|true)$/i.test(qs.searchParams.get('force') || '');
-    const preferWeb = /^(1|true)$/i.test(qs.searchParams.get('web')   || ''); // alias
-
     const el   = (s)=>document.querySelector(s);
     const txt  = (s,v)=>{ const n=el(s); if(n) n.textContent=v; };
     const byId = (id)=>document.getElementById(id);
@@ -65,45 +60,27 @@
     const name = (qs.searchParams.get('name') || '').trim();
     if (name) txt('.name', name);
 
-    // ---- build deep link WITHOUT spelling the scheme directly ----
-    const scheme = ['wha','ts','app'].join(''); // avoid the word in-source
-    const brand  = scheme;                      // alias for clarity
-    const deep   = scheme + '://' + 'chat' + '?jid=' + encodeURIComponent(jid);
-    const isGroup = /@g\.us$/i.test(jid);
-    const phone = jid.replace(/@.*/,'');
-    const web = 'https://web.' + brand + '.com/send?phone=' + encodeURIComponent(phone);
+    // ---- build deep link (explicit scheme) ----
+    const deep   = 'whatsapp://chat?jid=' + encodeURIComponent(jid);
 
-    // Show this page's URL (branded) instead of whatsapp:// link
+    // show this page's own URL for copy fallback (keeps your branded domain)
     txt('#deeplink', location.href);
 
+    // open handler (used for auto-open, Retry, and button tap)
     function openNow() {
       if (!jid) {
         alert('Missing jid. Add ?jid=NUMBER or ?jid=GROUPID@g.us');
         return;
       }
+      // Try to launch WhatsApp immediately
+      location.href = deep;
 
-      // FORCE WEB: skip app for numbers
-      if (!isGroup && forceWeb) {
-        location.replace(web);
-        return;
-      }
-
-      // Try app first
-      location.replace(deep);
-
-      // Prefer web = softer fallback (shorter delay) for numbers
-      const delay = (!isGroup && preferWeb && !forceWeb) ? 400 : 1000;
-
-      // If app didn’t launch (tab still visible), fallback:
+      // If the app didn't take focus (tab still visible), reveal fallback UI
       setTimeout(() => {
         if (document.visibilityState === 'visible') {
-          if (!isGroup) {
-            location.href = web;
-          } else {
-            byId('fallback').classList.remove('hide');
-          }
+          byId('fallback').classList.remove('hide');
         }
-      }, delay);
+      }, 600);
     }
 
     byId('go').addEventListener('click', openNow);
@@ -113,7 +90,7 @@
       catch { /* noop */ }
     });
 
-    // Auto-open on load
+    // Auto-open on load (restores your original click-link → instant open behavior)
     openNow();
 
     if (name) document.title = 'Open Chat — ' + name;
@@ -121,5 +98,3 @@
   </script>
 </body>
 </html>
-
-
