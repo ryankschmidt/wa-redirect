@@ -1,44 +1,73 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
   <title>Open WhatsApp</title>
-  <script>
-    (function () {
-      function getJid() {
-        const u = new URL(window.location.href);
-        // Try ?jid=...
-        let jid = u.searchParams.get('jid');
-        if (jid) return jid;
-        // Try /g/<jid> format
-        const m = location.pathname.match(/\/g\/([^\/#?]+)/);
-        if (m) return decodeURIComponent(m[1]);
-        // Try hash #jid=...
-        if (u.hash) return u.hash.replace(/^#(jid=)?/, '');
-        return null;
-      }
-      const jid = getJid();
-      if (jid) {
-        const waLink = 'whatsapp://chat?jid=' + encodeURIComponent(jid);
-        // Redirect
-        window.location.replace(waLink);
-        // Also show fallback clickable link
-        document.addEventListener('DOMContentLoaded', () => {
-          document.getElementById('fallback').innerHTML =
-            `<p>If you are not redirected, <a href="${waLink}">click here</a>.</p>`;
-        });
-      } else {
-        document.addEventListener('DOMContentLoaded', () => {
-          document.getElementById('fallback').innerHTML =
-            '<p>Missing JID. Add ?jid=NUMBER_OR_GROUP_ID to the URL.</p>';
-        });
-      }
-    })();
-  </script>
+
+  <!-- Stop stale caching on GH Pages/CDN -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+
+  <style>
+    body { font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 24px; }
+    code { background:#f2f2f2; padding:2px 5px; border-radius:4px; }
+  </style>
 </head>
 <body>
-  <div id="fallback"></div>
+  <noscript>Enable JavaScript to open WhatsApp.</noscript>
+  <script>
+  (function () {
+    const url = new URL(window.location.href);
+
+    // 1) Accept JID from query (?jid=...) or from path:
+    //    /1234567890        (individual)
+    //    /g/120...@g.us     (group)
+    let jid = url.searchParams.get('jid');
+    if (!jid) {
+      const path = decodeURIComponent(url.pathname.replace(/^\/+/, '')); // strip leading slash(es)
+      let m = path.match(/^g\/(.+)$/) || path.match(/^(.+)$/);
+      if (m) jid = m[1];
+    }
+
+    // Clean up percent-encoding and whitespace
+    jid = jid ? decodeURIComponent(jid).trim() : '';
+
+    if (!jid) {
+      document.body.innerHTML =
+        '<p>Missing <code>jid</code>. Use <code>?jid=NUMBER</code> or <code>?jid=GROUPID@g.us</code>.</p>';
+      return;
+    }
+
+    // 2) Build deep link
+    const deep = 'whatsapp://chat?jid=' + encodeURIComponent(jid);
+    const isGroup = /@g\.us$/i.test(jid);
+
+    // 3) Try to open the app
+    //    Replace (not history.back) so reloads don’t loop.
+    window.location.replace(deep);
+
+    // 4) Fallback after a moment if custom scheme didn’t launch:
+    //    - Individuals: open official web API link (works on desktop/mobile)
+    //    - Groups: show the deep link so the user can retry/tap "Open WhatsApp"
+    setTimeout(() => {
+      if (document.visibilityState === 'visible') {
+        if (!isGroup) {
+          const phone = jid.replace(/@.*/, ''); // strip any domain if present
+          window.location.href = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(phone);
+        } else {
+          document.body.innerHTML =
+            '<p>Tap <strong>Open WhatsApp</strong> when prompted.</p>' +
+            '<p>If nothing opened, copy and paste this into your browser address bar:</p>' +
+            '<code>' + deep + '</code>';
+        }
+      }
+    }, 1200);
+
+    // Debug in Console so you can verify it’s using the right value
+    console.log('[wa-redirect] Using JID:', jid);
+  })();
+  </script>
 </body>
 </html>
-
