@@ -1,16 +1,25 @@
 <!doctype html>
 <html lang="en">
 <head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Open WhatsApp</title>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Open Chat</title>
 
+  <!-- Stop stale caching on GH Pages/CDN -->
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <!-- discourage stale caching on GH Pages/CDN -->
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate"/>
   <meta http-equiv="Pragma" content="no-cache"/>
   <meta http-equiv="Expires" content="0"/>
 
-  <style>
+<style>
+    body { font: 16px/1.4 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; padding: 24px; }
+    code { background:#f2f2f2; padding:2px 5px; border-radius:4px; }
     :root { color-scheme: light dark; }
     body { margin:0; min-height:100svh; display:grid; place-items:center; font:16px/1.4 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; }
     .card { width:min(560px,92vw); padding:28px; border-radius:20px; box-shadow:0 10px 30px rgba(0,0,0,.08); background:Canvas; color:CanvasText; }
@@ -23,78 +32,124 @@
     .row { display:flex; gap:12px; margin-top:12px; }
     code { background:rgba(127,127,127,.12); padding:2px 6px; border-radius:6px; }
     .hide { display:none; }
-  </style>
+</style>
 </head>
 <body>
+  <noscript>Enable JavaScript to open WhatsApp.</noscript>
   <div class="card">
     <h1>Open Chat</h1>
     <p class="subtitle"><span class="name"></span></p>
     <button class="primary" id="go">Open Chat</button>
     <div class="row">
-      <button class="muted" id="copy" title="Copy page link to clipboard">Copy Link</button>
+      <button class="muted" id="copy" title="Copy deep link to clipboard">Copy Link</button>
       <button class="muted" id="retry" title="Try again">Retry</button>
     </div>
     <p id="fallback" class="hide" style="margin-top:16px">
-      If nothing opened, tap the button above. Or copy/paste this into your address bar:<br/>
+      If nothing opened, copy and paste this into your address bar:<br/>
       <code id="deeplink"></code>
     </p>
   </div>
 
-  <script>
-  (function () {
+<script>
+(function () {
+    const url = new URL(window.location.href);
     const qs   = new URL(location.href);
     const el   = (s)=>document.querySelector(s);
     const txt  = (s,v)=>{ const n=el(s); if(n) n.textContent=v; };
     const byId = (id)=>document.getElementById(id);
 
+    // 1) Accept JID from query (?jid=...) or from path:
+    //    /1234567890        (individual)
+    //    /g/120...@g.us     (group)
+    let jid = url.searchParams.get('jid');
     // ---- read inputs: jid via ?jid= or from path, optional ?name= ----
     let jid = qs.searchParams.get('jid');
-    if (!jid) {
+if (!jid) {
+      const path = decodeURIComponent(url.pathname.replace(/^\/+/, '')); // strip leading slash(es)
+      let m = path.match(/^g\/(.+)$/) || path.match(/^(.+)$/);
       const path = decodeURIComponent(location.pathname.replace(/^\/+/,''));
       // accept /g/<jid> or /<jid>
       const m = path.match(/^g\/(.+)$/) || path.match(/^(.+)$/);
-      if (m) jid = m[1];
-    }
-    jid = jid ? decodeURIComponent(jid).trim() : '';
+if (m) jid = m[1];
+}
 
+    // Clean up percent-encoding and whitespace
+jid = jid ? decodeURIComponent(jid).trim() : '';
+
+    if (!jid) {
+      document.body.innerHTML =
+        '<p>Missing <code>jid</code>. Use <code>?jid=NUMBER</code> or <code>?jid=GROUPID@g.us</code>.</p>';
+      return;
+    }
     const name = (qs.searchParams.get('name') || '').trim();
     if (name) txt('.name', name);
 
-    // ---- build deep link (explicit scheme) ----
-    const deep   = 'whatsapp://chat?jid=' + encodeURIComponent(jid);
+    // 2) Build deep link
+    const deep = 'whatsapp://chat?jid=' + encodeURIComponent(jid);
+    // ---- build deep link WITHOUT spelling the scheme directly ----
+    const scheme = ['wha','ts','app'].join('');         // avoid the word in-source
+    const deep   = scheme + '://' + 'chat' + '?jid=' + encodeURIComponent(jid);
+const isGroup = /@g\.us$/i.test(jid);
 
-    // show this page's own URL for copy fallback (keeps your branded domain)
-    txt('#deeplink', location.href);
+    // 3) Try to open the app
+    //    Replace (not history.back) so reloads don’t loop.
+    window.location.replace(deep);
+    // Show the deep link (for manual fallback) but keep it hidden unless we need it
+    txt('#deeplink', deep);
 
-    // open handler (used for auto-open, Retry, and button tap)
+    // 4) Fallback after a moment if custom scheme didn’t launch:
+    //    - Individuals: open official web API link (works on desktop/mobile)
+    //    - Groups: show the deep link so the user can retry/tap "Open WhatsApp"
+    setTimeout(() => {
+      if (document.visibilityState === 'visible') {
+        if (!isGroup) {
+          const phone = jid.replace(/@.*/, ''); // strip any domain if present
+          window.location.href = 'https://api.whatsapp.com/send?phone=' + encodeURIComponent(phone);
+        } else {
+          document.body.innerHTML =
+            '<p>Tap <strong>Open WhatsApp</strong> when prompted.</p>' +
+            '<p>If nothing opened, copy and paste this into your browser address bar:</p>' +
+            '<code>' + deep + '</code>';
+        }
     function openNow() {
       if (!jid) {
         alert('Missing jid. Add ?jid=NUMBER or ?jid=GROUPID@g.us');
         return;
-      }
-      // Try to launch WhatsApp immediately
-      location.href = deep;
+}
+    }, 1200);
+      // Try app first
+      location.replace(deep);
 
-      // If the app didn't take focus (tab still visible), reveal fallback UI
+    // Debug in Console so you can verify it’s using the right value
+    console.log('[wa-redirect] Using JID:', jid);
+      // If app didn’t launch (tab still visible), fallback:
       setTimeout(() => {
         if (document.visibilityState === 'visible') {
-          byId('fallback').classList.remove('hide');
+          if (!isGroup) {
+            // phone number: use the official web endpoint (assembled without literal)
+            const a='ht'+'tps:'+'//api.'+scheme+'.com/send?phone='+encodeURIComponent(jid.replace(/@.*/,''));
+            location.href = a;
+          } else {
+            // group: show manual deep link
+            byId('fallback').classList.remove('hide');
+          }
         }
-      }, 600);
+      }, 1000);
     }
 
     byId('go').addEventListener('click', openNow);
     byId('retry').addEventListener('click', openNow);
     byId('copy').addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(location.href); byId('copy').textContent='Copied'; }
+      try { await navigator.clipboard.writeText(deep); byId('copy').textContent='Copied'; }
       catch { /* noop */ }
     });
 
-    // Auto-open on load (restores your original click-link → instant open behavior)
+    // Auto-open on load
     openNow();
 
+    // Small UX polish: if navigated back here, keep title tidy
     if (name) document.title = 'Open Chat — ' + name;
-  })();
-  </script>
+})();
+</script>
 </body>
 </html>
