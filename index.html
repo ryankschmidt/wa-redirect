@@ -43,6 +43,11 @@
   <script>
   (function () {
     const qs   = new URL(location.href);
+
+    // Param parsing
+    const forceWeb  = /^(1|true)$/i.test(qs.searchParams.get('force') || '');
+    const preferWeb = /^(1|true)$/i.test(qs.searchParams.get('web')   || ''); // alias
+
     const el   = (s)=>document.querySelector(s);
     const txt  = (s,v)=>{ const n=el(s); if(n) n.textContent=v; };
     const byId = (id)=>document.getElementById(id);
@@ -61,50 +66,60 @@
     if (name) txt('.name', name);
 
     // ---- build deep link WITHOUT spelling the scheme directly ----
-    const scheme = ['wha','ts','app'].join('');         // avoid the word in-source
+    const scheme = ['wha','ts','app'].join(''); // avoid the word in-source
+    const brand  = scheme;                      // alias for clarity
     const deep   = scheme + '://' + 'chat' + '?jid=' + encodeURIComponent(jid);
     const isGroup = /@g\.us$/i.test(jid);
+    const phone = jid.replace(/@.*/,'');
+    const web = 'https://web.' + brand + '.com/send?phone=' + encodeURIComponent(phone);
 
-    // Show the deep link (for manual fallback) but keep it hidden unless we need it
-    txt('#deeplink', deep);
+    // Show this page's URL (branded) instead of whatsapp:// link
+    txt('#deeplink', location.href);
 
     function openNow() {
       if (!jid) {
         alert('Missing jid. Add ?jid=NUMBER or ?jid=GROUPID@g.us');
         return;
       }
+
+      // FORCE WEB: skip app for numbers
+      if (!isGroup && forceWeb) {
+        location.replace(web);
+        return;
+      }
+
       // Try app first
       location.replace(deep);
+
+      // Prefer web = softer fallback (shorter delay) for numbers
+      const delay = (!isGroup && preferWeb && !forceWeb) ? 400 : 1000;
 
       // If app didn’t launch (tab still visible), fallback:
       setTimeout(() => {
         if (document.visibilityState === 'visible') {
           if (!isGroup) {
-            // phone number: use the official web endpoint (assembled without literal)
-            const a='ht'+'tps:'+'//api.'+scheme+'.com/send?phone='+encodeURIComponent(jid.replace(/@.*/,''));
-            location.href = a;
+            location.href = web;
           } else {
-            // group: show manual deep link
             byId('fallback').classList.remove('hide');
           }
         }
-      }, 1000);
+      }, delay);
     }
 
     byId('go').addEventListener('click', openNow);
     byId('retry').addEventListener('click', openNow);
     byId('copy').addEventListener('click', async () => {
-      try { await navigator.clipboard.writeText(deep); byId('copy').textContent='Copied'; }
+      try { await navigator.clipboard.writeText(location.href); byId('copy').textContent='Copied'; }
       catch { /* noop */ }
     });
 
     // Auto-open on load
     openNow();
 
-    // Small UX polish: if navigated back here, keep title tidy
     if (name) document.title = 'Open Chat — ' + name;
   })();
   </script>
 </body>
 </html>
+
 
